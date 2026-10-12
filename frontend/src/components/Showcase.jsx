@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FeatherIcon, MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
+import { CalendarPlusIcon, FeatherIcon, MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
 import { showcaseApi } from "../api";
 import { demoApi } from "../demo/demoApi";
+import { addDays, dayOf } from "../day";
+import Herald from "./Herald";
+import PickDialog from "./PickDialog";
+import RankDialog from "./RankDialog";
 import Descent from "../descent/Descent";
 import AetherSky from "../descent/scenes/AetherSky";
 import { WorldProvider } from "../descent/world";
@@ -22,6 +26,9 @@ const byNumber = (get, dir = 1) => (a, b) => {
 };
 const time = (iso) => (iso ? Date.parse(iso) : null);
 
+// statuses of an album I can rank: listened to, or listening to right now
+const RANKABLE = ["Listened", "In progress"];
+
 const SORTS = {
   rank: { label: "My ranking", cmp: byNumber((a) => a.rank) },
   recent: { label: "Latest Album of the Day", cmp: byNumber((a) => time(a.album_of_day), -1) },
@@ -34,7 +41,7 @@ const SORTS = {
 const year = (a) => (a.release_date ? Number(a.release_date.slice(0, 4)) : null);
 const decadeOf = (a) => (year(a) ? Math.floor(year(a) / 10) * 10 : null);
 
-function formatDate(iso) {
+export function formatDate(iso) {
   if (!iso) return null;
   const date = new Date(`${iso.slice(0, 10)}T00:00:00`);
   if (Number.isNaN(date.getTime())) return iso;
@@ -160,7 +167,9 @@ function Detail({ album, onClose }) {
   );
 }
 
-export default function Showcase({ hidden }) {
+// `onLibraryChanged`: the owner ranked or picked an album, so other tabs showing ranks (Purgatory) should reload.
+// `refresh` changes when the owner presses Live: the albums are fetched again.
+export default function Showcase({ hidden, owner = false, refresh = 0, onLibraryChanged }) {
   const [data, setData] = useState(null); // { albums, sample, updated }
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -169,11 +178,14 @@ export default function Showcase({ hidden }) {
   const [decade, setDecade] = useState(null);
   const [status, setStatus] = useState("");
   const [selected, setSelected] = useState(null);
+  const [ranking, setRanking] = useState(false); // the owner's ranker popup for the Album of the Day
+  const [picking, setPicking] = useState(false); // the owner's popup to pick a new Album of the Day
+  const [reload, setReload] = useState(0); // bumped to fetch the albums again, e.g. after a new Album of the Day is picked
 
   useEffect(() => {
     let live = true;
     showcaseApi
-      .albums()
+      .albums(owner)
       .then(({ albums, updated_at }) => live && setData({ albums, sample: false, updated: formatStamp(updated_at) }))
       .catch(async (e) => {
         // Not configured, offline, or Notion is down: show sample albums rather than an empty tab.
@@ -185,9 +197,22 @@ export default function Showcase({ hidden }) {
     return () => {
       live = false;
     };
-  }, []);
+  }, [owner, reload, refresh]); // signing in or out, or a new pick, reloads it: the owner's copy is always fresh
 
   const albums = data?.albums;
+
+  // the owner just ranked the Album of the Day: show the new ranks now (the cached public copy catches up later)
+  const applyRanks = ({ ranks, listened = [] }) => {
+    onLibraryChanged?.();
+    setData((d) => ({
+      ...d,
+      albums: d.albums.map((a) => ({
+        ...a,
+        ...(ranks[a.id] ? { rank: Number(ranks[a.id]) } : {}),
+        ...(listened.includes(a.id) ? { status: "Listened" } : {}),
+      })),
+    }));
+  };
 
   const facets = useMemo(() => {
     if (!albums) return null;
@@ -199,20 +224,38 @@ export default function Showcase({ hidden }) {
     const genres = [...count(albums.flatMap((a) => a.genres))].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
     const decades = [...new Set(albums.map(decadeOf).filter(Boolean))].sort((a, b) => b - a);
     const statuses = [...new Set(albums.map((a) => a.status))].sort();
-    const today = new Date().toISOString().slice(0, 10);
-    const ofTheDay = albums
-      .filter((a) => a.album_of_day && a.album_of_day.slice(0, 10) <= today)
+    const today = dayOf();
+    const dated = albums.filter((a) => a.album_of_day);
+    const latest = dated
+      .filter((a) => a.album_of_day.slice(0, 10) <= today)
       .sort((a, b) => b.album_of_day.localeCompare(a.album_of_day))[0];
+    // The banner shows today's album. An older one stays only while it is still unranked (I'm still listening to it),
+    // so I can rank it; once it is ranked and its day is over, the banner waits for today's pick.
+    const ofTheDay = latest && (latest.album_of_day.slice(0, 10) === today || latest.rank == null) ? latest : null;
+    const taken = new Map(dated.map((a) => [a.album_of_day.slice(0, 10), a.name])); // day -> its album
+    let nextDay = today; // the first day without an album, from today on
+    while (taken.has(nextDay)) nextDay = addDays(nextDay, 1);
     return {
       genres,
       decades,
       statuses,
       ofTheDay,
+      latest,
+      today,
+      taken,
+      nextDay,
       listened: albums.filter((a) => a.status === "Listened").length,
       artists: new Set(albums.map((a) => a.artist)).size,
       noCover: albums.filter((a) => !a.cover).length,
     };
   }, [albums]);
+
+  // the owner can rank today's album from its card while it has no rank yet
+  const canRank = owner && Boolean(data) && !data.sample && facets?.ofTheDay?.rank == null && RANKABLE.includes(facets?.ofTheDay?.status);
+
+  // once today's album is listened to and ranked, the owner can pick the next one, for a day to come
+  const live = owner && Boolean(data) && !data.sample;
+  const canPick = live && facets?.ofTheDay?.rank != null; // under today's ranked album: pick one for a day to come
 
   const filtered = useMemo(() => {
     if (!albums) return [];
@@ -264,9 +307,19 @@ export default function Showcase({ hidden }) {
 
         {data && (
           <>
+            {!facets.ofTheDay && (
+              <Herald
+                day={facets.today}
+                owner={live}
+                waiting={albums.filter((a) => a.status === "Not listened" && a.name !== "Untitled").length}
+                latest={facets.latest}
+                onPick={() => setPicking(true)}
+                onOpenLatest={() => setSelected(facets.latest)}
+              />
+            )}
             {facets.ofTheDay && (
               <div className="sc-today-wrap">
-                <button className="sc-today plaque" onClick={() => setSelected(facets.ofTheDay)}>
+                <button className="sc-today plaque" onClick={() => (canRank ? setRanking(true) : setSelected(facets.ofTheDay))}>
                   <span className="sc-cover">
                     <Cover album={facets.ofTheDay} eager />
                   </span>
@@ -276,6 +329,7 @@ export default function Showcase({ hidden }) {
                     <span className="sc-today-artist">{facets.ofTheDay.artist}</span>
                     {facets.ofTheDay.genres.length > 0 && <span className="sc-dim">{facets.ofTheDay.genres.join(", ")}</span>}
                     {facets.ofTheDay.rank != null && <span className="sc-today-rank">Ranked No. {facets.ofTheDay.rank}</span>}
+                    {canRank && <span className="sc-today-rank sc-rank-cta">Not ranked yet. Click to rank it.</span>}
                     <span className="sc-hermes">
                       <FeatherIcon aria-hidden="true" />
                       Delivered by Hermes
@@ -285,6 +339,12 @@ export default function Showcase({ hidden }) {
                 <button className="link sc-find" onClick={findToday}>
                   Find it in the descent
                 </button>
+                {canPick && (
+                  <button className="sc-pick" onClick={() => setPicking(true)}>
+                    <CalendarPlusIcon aria-hidden="true" />
+                    Pick the next Album of the Day
+                  </button>
+                )}
               </div>
             )}
 
@@ -389,6 +449,21 @@ export default function Showcase({ hidden }) {
           </>
         )}
 
+        {picking && (
+          <PickDialog
+            today={facets.today}
+            defaultDay={facets.nextDay}
+            taken={Object.fromEntries(facets.taken)}
+            onPicked={() => {
+              setReload((n) => n + 1);
+              onLibraryChanged?.();
+            }}
+            onClose={() => setPicking(false)}
+          />
+        )}
+        {ranking && facets?.ofTheDay && (
+          <RankDialog key={facets.ofTheDay.id} album={facets.ofTheDay} onRanked={applyRanks} onClose={() => setRanking(false)} />
+        )}
         {selected && <Detail key={selected.id} album={selected} onClose={() => setSelected(null)} />}
       </WorldProvider>
     </section>

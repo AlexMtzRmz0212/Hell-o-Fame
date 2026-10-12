@@ -62,3 +62,20 @@ def album_tracks(album_id: str) -> list[dict]:
             })
         url, params = body.get("next"), None  # `next` already carries its own query
     return tracks
+
+
+def _get(url: str) -> dict:
+    response = requests.get(url, headers={"Authorization": f"Bearer {get_token()}"}, timeout=20)
+    if response.status_code != 200:
+        raise RuntimeError(f"Spotify lookup failed ({response.status_code})")
+    return response.json()
+
+
+def get_album(album_id: str) -> dict:
+    """One album by Spotify id (the raw object: name, artists, images, release_date, total_tracks...)."""
+    return _get(f"https://api.spotify.com/v1/albums/{album_id}")
+
+
+def artist_genres(artist_id: str) -> list[str]:
+    """Spotify's genre tags for an artist (lower case); empty when it has none."""
+    return list(_get(f"https://api.spotify.com/v1/artists/{artist_id}").get("genres") or [])

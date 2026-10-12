@@ -23,7 +23,7 @@ if not exist .venv goto :FAIL_MSG
 if not exist frontend\node_modules goto :FAIL_MSG
 
 echo [3/3] Launching terminals...
-wt -w 0 nt --title "API" -d "." cmd /k ".venv\Scripts\activate && uvicorn backend.main:app --reload --port %BACKEND_PORT%" ; ^
+wt -w 0 nt --title "API" -d "." cmd /k ".venv\Scripts\python.exe -m uvicorn backend.main:app --reload --port %BACKEND_PORT%" ; ^
 split-pane -V --title "Web" -d ".\frontend" cmd /k "npm run dev"
 if %ERRORLEVEL% neq 0 goto :FAIL_MSG
 

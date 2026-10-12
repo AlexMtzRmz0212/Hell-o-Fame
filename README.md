@@ -28,7 +28,9 @@ genre / decade / status filters and a detail view. It is **view-only**: nothing 
 - Data: `GET /api/showcase/albums` (no login). The Notion token never leaves the server; the response only has the
   fields in `Album.to_public()` (`musicbox/library/models.py`): cover, name, artist, genres, release date, decade,
   rank, status, Album of the Day (the date I listened to it). Friends' tops and "Picked by" are never read or sent.
-- Freshness: cached 20 min on the server, 15 min on Vercel's CDN, 5 min in the browser. Covers uploaded to Notion are
+- Freshness: cached 20 min on the server, 15 min on Vercel's CDN, 5 min in the browser. When signed in, the **Live** button in the
+  header reads Notion again right now (`POST /api/showcase/refresh`, owner only; if Notion can't be read, the last copy stays) and
+  reloads the Hall, Purgatory and the cover queue. Anything the app itself writes already refreshes the server's copy. Covers uploaded to Notion are
   signed links that expire after an hour, which is why the windows are short. If Notion is down the last good copy is
   served; if the library isn't configured the tab shows sample albums.
 
@@ -74,13 +76,82 @@ shared rank after another, until every rank has one album. Answers are kept in t
 until they are written.
 
 - **Movements** shows what the new ranks do: a before/after slope chart on one rank scale (a tie fans out, everything
-  below slides down) and a Replay that deals each tie out like a pile of cards. "Close gaps" renumbers 1..N.
-- **Rule** (`rank_listened` in `transform.py`, mirrored in `frontend/src/sorter.js` for the preview): only listened
-  albums that already have a rank; ties in playoff order (undecided ones in Notion order); the albums below are bumped
-  down to make room. Unranked albums are left out.
+  below slides down) and a Replay that deals each tie out like a pile of cards. Writing renumbers 1..N without gaps; the "Close gaps" checkbox (on by default) is under *More options* for the rare case you want to keep your gaps.
+- **Rule** (`rank_listened` in `transform.py`, mirrored in `frontend/src/sorter.js` for the preview): only albums
+  that are Listened or In progress and already have a rank; ties in playoff order (undecided ones in Notion order);
+  ranks renumbered 1..N with no gaps. Unranked albums are left out.
 - Writing re-reads Notion and recomputes the ranks on the server, then writes only pages whose rank changes (one
   Notion call each, so run it locally). Routes (owner only): `GET /api/sorter/albums`, `POST /api/sorter/apply`
-  (`tiebreak`: page ids from the playoffs, `compact`). The public demo plays on sample albums and never writes.
+  (`tiebreak`: page ids from the playoffs; `compact` is on by default). The public demo plays on a copy of the real Purgatory (`frontend/src/demo/sorterSnapshot.js`, 187 albums, 17 ties,
+  taken 2026-10-12; regenerate it to refresh) and never writes.
+
+### Ranking the Album of the Day (owner only)
+
+While signed in, an Album of the Day that is Listened or In progress and has no `Alex Top` says "Click to rank it". Clicking
+the card opens a popup (`RankDialog.jsx`):
+
+1. **Rough estimate** (optional): type where you think it will rank before anything is compared. It stays on screen,
+   locked, while the questions run. "Skip the questions" uses just the estimate.
+2. **The battle**: the Album of the Day (challenger) faces one of your ranked albums (defender) in rounds. Click the
+   winner, or use the left / right arrow (Backspace undoes). Each answer halves the places it could take (binary
+   insertion), so 187 albums need at most 8 rounds, often fewer. A strip shows where it can still land, with your
+   estimate as a pennant, and the round pips fill in as you go. The **Songs** toggle (remembered in this browser)
+   lists each fighter's tracks from Spotify (`POST /api/covers/album-tracks`, which finds the album by name and artist
+   and prefers the edition your cover belongs to).
+3. **Choose**: keep the ranker's pick, your estimate, or type another rank. These are the real rank numbers you see in the
+   Hall. **Write** gives the album that number (`place_album` in `transform.py`) and moves down only the albums in its
+   way: the ranks from that number up to the first free one each move one place (a tie moves together). **Nothing else
+   is touched**: ties stay ties and gaps stay gaps, those are Purgatory's job, and only the changed pages are written. The
+   popup says how many albums move before you write. An album that was In progress is also set to Listened.
+
+Route (owner only): `POST /api/sorter/place` (`id`, `rank`). Visitors never see any of this. For reference, Purgatory's
+**Write** is the one that renumbers 1..N and settles ties.
+
+### The banner and picking the Album of the Day (owner only for the picker)
+
+The banner at the top of the Hall is **today's** album (today = the browser's calendar day, not UTC's):
+
+- Today has an album: it shows with its rank and **Find it in the descent**. An album from an earlier day also stays
+  while it is still unranked, so it can be ranked (**Rank it**).
+- Otherwise a banner of its own (`Herald.jsx`) shows: the day on a winged medallion, *Hermes awaits your word* for the
+  owner (with how many albums are waiting and **Pick today's Album of the Day**) or *Hermes is on his way* for visitors,
+  and the last delivered album as a card you can open.
+- Once today's album is ranked, **Pick the next Album of the Day** appears under it. It defaults to the first day
+  with no album (tomorrow), and the day can be changed. A picked future album appears in the Hall on its day. A day that
+  already has an album can't be chosen twice.
+
+The popup (`PickDialog.jsx`, `backend/pick.py`, `musicbox/library/pick.py`) has three places to choose from:
+
+- **Waiting**: albums in your library with a title that are still Not listened, plus **Surprise me**. A "Picked by" shows
+  only when someone other than me recommended it.
+- **Artists**: library pages that only have an artist ("no album yet"). Pick the artist, then one of their albums from
+  Spotify; that page is filled with the album (title, cover, release date, genres).
+- **Search Spotify**: any album. Results say what your library already has: *Listened, No. 66* can't be picked again,
+  *In your library* uses its existing page, *New* adds a page (cover and icon from Spotify, release date, genres that
+  your Genre list already has, Picked by Alex).
+
+Choosing sets the day as the page's Album of the Day and Status to In progress. Routes (owner only):
+`GET /api/pick/options`, `POST /api/pick/search` (`query`), `POST /api/pick/choose` (`id` and/or `spotify_id`, `date`:
+from two days ago to a year ahead). The album's details are always fetched from Spotify by id on the server, never taken
+from the browser.
+
+### Ranking an album never disturbs the playoffs
+
+Ranking (the popup) only moves the albums in the new album's way, and a tie moves together, so the same albums stay tied
+(checked against the real library for every possible rank). The playoff picks kept in the browser
+(`mh-sorter-answers`) are keyed by *who* is tied, not by the rank number, so a shifted tie keeps its picks, and
+Purgatory reloads its list after a rank or a pick.
+
+### Purgatory backup (Tools)
+
+`frontend/src/demo/sorterSnapshot.js` holds every ranked album's rank (ties included). The public demo plays on it, so it
+is also a copy of the ranking to go back to. Two tools (`musicbox/library/backup.py`):
+
+- **Back up Purgatory**: one click rewrites that file from Notion (it never writes Notion) and logs what changed. It refuses
+  to overwrite when Notion answers with under half the albums the backup has. Commit and deploy afterwards to update the public page.
+- **Restore Purgatory from the backup**: writes the backup's ranks back to Notion, ties and gaps included (dry run by
+  default). Albums are matched by title and artist; ones not in the backup keep their rank. Back up *before* a risky write,
+  restore *after* a bad one.
 
 ## Album pipeline
 
@@ -98,6 +169,7 @@ changes back (dry run by default, retries on rate limits). New album features sh
 | Spotify search | Albums / artists / tracks | `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` |
 | Setlist.fm search | Setlists for an artist | `SETLISTFM_API_KEY` |
 | Genius lyrics | Song page + lyrics | `GENIUS_TOKEN` |
+| Album covers as page icons | Spotify cover -> Notion page icon, for pages with no icon or Notion's default one; optionally also replaces icons set by hand (emoji, uploaded images) | `NOTION_ALBUMS_SECRET`, `ALBUMS_LIBRARY_DB_ID` |
 
 Every tool that can write defaults to **dry run**; turning it off asks for confirmation in the UI. A tool whose
 settings are missing is greyed out and says which ones.

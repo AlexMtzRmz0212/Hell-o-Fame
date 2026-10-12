@@ -24,5 +24,10 @@ def get_showcase() -> dict:
     return _cache.get(_load)
 
 
+def refresh_showcase() -> dict:
+    """Read the library from Notion now (instead of waiting for the cache to run out). Raises if Notion can't be read."""
+    return _cache.refresh(_load)
+
+
 def clear_cache() -> None:
     _cache.clear()

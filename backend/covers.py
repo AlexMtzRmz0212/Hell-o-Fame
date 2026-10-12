@@ -58,6 +58,20 @@ def propose(body: SuggestBody):
         raise HTTPException(502, f"Spotify lookup failed: {e}")
 
 
+@router.post("/album-tracks")
+def album_tracks(body: SuggestBody):
+    """Track list of a library album, found on Spotify by name and artist (the edition its cover belongs to if any)."""
+    _need(SPOTIFY)
+    try:
+        match = suggest(body.name, body.artist, body.current)
+        if not match:
+            return {"found": False, "edition": None, "tracks": []}
+        pick = next((o for o in match["options"] if o["is_current"]), match["options"][0])
+        return {"found": True, "edition": pick["name"], "tracks": spotify.album_tracks(pick["id"])}
+    except Exception as e:
+        raise HTTPException(502, f"Spotify lookup failed: {e}")
+
+
 @router.get("/tracks/{album_id}")
 def tracks(album_id: str):
     """Track list of one Spotify album, so two editions can be compared side by side."""

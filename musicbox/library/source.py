@@ -14,7 +14,7 @@ NEEDS = ["NOTION_ALBUMS_SECRET", "ALBUMS_LIBRARY_DB_ID"]
 # friends' columns are never even downloaded.
 PROPERTIES = [
     "Album", "Artist", "Genre", "Release Date", "Decade", "Alex Top",
-    "Status", "Album of the Day",
+    "Status", "Album of the Day", "Picked by",
 ]
 
 
@@ -48,6 +48,15 @@ def _image(value: Optional[dict]) -> Optional[str]:
     return None
 
 
+def _icon_kind(icon: Optional[dict]) -> Optional[str]:
+    if not icon:
+        return None
+    kind = icon.get("type")
+    if kind == "icon":
+        return "placeholder" if (icon.get("icon") or {}).get("name") == "music-album" else "native"
+    return {"emoji": "emoji", "file": "upload", "external": "external"}.get(kind, "native")
+
+
 def page_to_album(page: dict) -> Album:
     """Pure mapper from a Notion page to an Album."""
     props = page.get("properties", {})
@@ -63,8 +72,10 @@ def page_to_album(page: dict) -> Album:
         rank_text=rank,
         status=_select(props.get("Status", {})) or "Unknown",
         album_of_day=_date(props.get("Album of the Day", {})),
+        picked_by=_select(props.get("Picked by", {})),
         cover=_image(page.get("cover")),
         has_icon=bool(page.get("icon")),
+        icon_kind=_icon_kind(page.get("icon")),
     )
 
 

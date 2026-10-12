@@ -19,6 +19,7 @@ class Change:
     title: Optional[str] = None  # new "Album" name
     cover: Optional[str] = None
     icon: Optional[str] = None
+    status: Optional[str] = None  # new "Status", e.g. In progress -> Listened once it is ranked
 
     @classmethod
     def of(cls, album: Album, **fields) -> "Change":
@@ -26,13 +27,15 @@ class Change:
 
     @property
     def fields(self) -> list[str]:
-        return [k for k in ("rank", "title", "cover", "icon") if getattr(self, k)]
+        return [k for k in ("rank", "title", "status", "cover", "icon") if getattr(self, k)]
 
     def payload(self) -> dict:
         payload: dict = {}
         properties: dict = {}
         if self.rank:
             properties["Alex Top"] = {"select": {"name": self.rank}}
+        if self.status:
+            properties["Status"] = {"status": {"name": self.status}}
         if self.title:
             properties["Album"] = {"title": [{"type": "text", "text": {"content": self.title}}]}
         if properties:

@@ -15,7 +15,8 @@ export function tieGroups(albums) {
     .sort(([a], [b]) => a - b)
     .map(([rank, members]) => {
       const ids = members.map((m) => m.id).sort();
-      return { rank, ids, key: `${rank}:${ids.join(",")}` };
+      // keyed by who is tied, not by the rank number: ranking another album shifts ranks, but not who plays whom
+      return { rank, ids, key: ids.join(",") };
     });
 }
 
@@ -88,7 +89,9 @@ export function planRanks(albums, tiebreak, compact) {
 
 export function loadAnswers() {
   try {
-    return JSON.parse(localStorage.getItem(ANSWERS) || "{}");
+    // picks saved before the rank was left out of the key ("64:id,id") carry over
+    const saved = JSON.parse(localStorage.getItem(ANSWERS) || "{}");
+    return Object.fromEntries(Object.entries(saved).map(([key, winners]) => [key.replace(/^\d+:/, ""), winners]));
   } catch {
     return {};
   }

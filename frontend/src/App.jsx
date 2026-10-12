@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BinocularsIcon, LockSimpleIcon, SignOutIcon } from "@phosphor-icons/react";
-import { UNAUTHORIZED_EVENT, auth, coversApi, realApi, sorterApi } from "./api";
+import { ArrowsClockwiseIcon, BinocularsIcon, LockSimpleIcon, SignOutIcon } from "@phosphor-icons/react";
+import { UNAUTHORIZED_EVENT, auth, coversApi, realApi, showcaseApi, sorterApi } from "./api";
 import { hydrate, loadFindings, loadRejected, saveFindings, saveRejected } from "./coverState";
 import { scanLibrary } from "./coverScan";
 import { demoApi } from "./demo/demoApi";
@@ -82,13 +82,15 @@ export default function App() {
   const [toolFilter, setToolFilter] = useState(savedFilter);
   const [covers, setCovers] = useState(null); // owner only: { issues, albums, can_suggest }
   const [ranks, setRanks] = useState(null); // { ties, open } from the album sorter: ranks shared by several albums
-  const [refresh, setRefresh] = useState(0); // bumped by a scan so the sorter reloads the ranks
+  const [refresh, setRefresh] = useState(0); // bumped by a scan, Live or a rank/pick so the Hall and the sorter load again
   const [stay, setStay] = useState(null); // the tab I'm on keeps showing even once its last problem is fixed
   const [findings, setFindings] = useState(loadFindings); // what the last scan found
   const [rejected, setRejected] = useState(loadRejected); // albums whose correction I swiped away
   const [scan, setScan] = useState(null); // { done, total } while scanning
   const [scanNote, setScanNote] = useState(null);
   const scanCtl = useRef(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState("");
 
   const enter = useCallback((required) => {
     setAuthRequired(required);
@@ -175,6 +177,22 @@ export default function App() {
   };
   // A scan re-reads the library: cover problems and shared ranks from Notion, then (with Spotify set up) every
   // album's cover and title against Spotify. Cover art and Purgatory only show while it finds something.
+  // "Live": read Notion again right now (the server keeps its own copy for 20 minutes), then reload what shows ranks
+  const refreshFromNotion = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setRefreshError("");
+    try {
+      await showcaseApi.refresh();
+      setRefresh((n) => n + 1); // the Hall and Purgatory load again
+      coversApi.queue().then(setCovers).catch(() => {}); // keep the queue we have if it can't be read
+    } catch (e) {
+      setRefreshError(e.message);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const startScan = async () => {
     if (scan || !covers) return;
     const ctl = new AbortController();
@@ -250,7 +268,7 @@ export default function App() {
     [SHOWCASE]: "My album library, ranked.",
     [SORTER]: owner
       ? "Albums that share a rank wait here. Pick the better one of each pair to break the tie."
-      : "Albums that share a rank wait here. Pick the better one of each pair to break the tie. This demo uses sample albums.",
+      : "Albums that share a rank wait here. Pick the better one of each pair to break the tie. This demo is a copy of my real albums: nothing you pick is saved.",
     [COVERS]: "Fix covers and titles from Spotify, one album at a time.",
     [TOOLS]: owner
       ? "My music tools: Notion album library, Spotify, streaming charts, setlists and lyrics."
@@ -310,7 +328,20 @@ export default function App() {
           </nav>
         )}
         <div className="top-actions">
-          <span className={`badge${owner ? " live" : ""}`}>{owner ? "Live" : "Public view"}</span>
+          {owner ? (
+            <button
+              className={`ghost live${refreshing ? " busy" : ""}`}
+              onClick={refreshFromNotion}
+              disabled={refreshing}
+              title="Live: you see the real library. Press to read Notion again now (changes made in Notion show up without the usual wait)"
+              aria-label={refreshing ? "Reading Notion again" : "Live. Read Notion again"}
+            >
+              <ArrowsClockwiseIcon aria-hidden="true" />
+              <span className="btn-label">{refreshing ? "Refreshing…" : "Live"}</span>
+            </button>
+          ) : (
+            <span className="badge">Public view</span>
+          )}
           {owner ? (
             <>
               {covers && (
@@ -341,6 +372,15 @@ export default function App() {
           )}
         </div>
       </header>
+
+      {owner && refreshError && (
+        <div className="scan-banner" role="alert">
+          <span>{refreshError}</span>
+          <button className="ghost" onClick={() => setRefreshError("")}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {owner && (scan || scanNote) && (
         <div className="scan-banner" role="status">
@@ -389,7 +429,7 @@ export default function App() {
         )}
 
         {/* the showcase, the sorter and every card stay mounted (just hidden) so state survives switching tabs */}
-        {phase !== "checking" && <Showcase hidden={!onShowcase} />}
+        {phase !== "checking" && <Showcase hidden={!onShowcase} owner={owner} refresh={refresh} onLibraryChanged={() => setRefresh((n) => n + 1)} />}
         {phase !== "checking" && (
           <AlbumSorter
             key={phase}

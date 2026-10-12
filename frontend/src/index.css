@@ -160,6 +160,12 @@ button.icon-btn svg { width: 20px; height: 20px; }
   border: 1px solid var(--line); border-radius: 4px; padding: 2px 8px; white-space: nowrap;
 }
 .badge.live { color: var(--fame-ink); border-color: var(--fame); }
+/* "Live" is also the refresh button: gold while it shows the real library, turning while it reads Notion */
+button.ghost.live { color: var(--fame-ink); border-color: var(--fame); }
+button.ghost.live:hover:not(:disabled) { background: var(--fame-wash); }
+button.ghost.live.busy svg { animation: live-spin 0.9s linear infinite; }
+@keyframes live-spin { to { rotate: 360deg; } }
+@media (prefers-reduced-motion: reduce) { button.ghost.live.busy svg { animation: none; } }
 
 /* ---- Fields ---- */
 input[type="text"], input[type="number"], input[type="password"], input[type="search"], select {
@@ -279,6 +285,119 @@ dialog::backdrop { background: var(--scrim); }
   .sc-today .sc-cover { max-width: 260px; }
 }
 
+/* owner only: the popup that ranks the Album of the Day (reuses the Purgatory pair styles) */
+.sc-rank-cta { color: var(--hell); }
+.sc-detail.rank-dialog { width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 32px); background: var(--bg); } /* solid: the Hall's plaque colour is see-through */
+.rank-body { position: relative; display: flex; flex-direction: column; gap: 14px; padding: 24px; }
+.rank-head { display: flex; align-items: center; gap: 16px; padding-right: 36px; }
+.rank-head h2 { font: 600 1.5rem/1.1 var(--display); letter-spacing: 0.01em; overflow-wrap: anywhere; }
+.rank-thumb { flex: none; width: 76px; }
+.rank-step { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.rank-step .as-pair { align-self: stretch; }
+.rank-guess { width: 200px; }
+.rank-locked { padding: 6px 12px; border-left: 3px solid var(--fame); background: var(--fame-wash); }
+.rank-options { display: flex; flex-direction: column; gap: 8px; align-self: stretch; }
+.rank-option { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; }
+.rank-option.on { border-color: var(--fame); background: var(--fame-wash); }
+.rank-option input[type="radio"] { margin-top: 4px; accent-color: var(--fame-ink); }
+.rank-option > span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rank-option input[type="number"] { width: 140px; }
+@media (max-width: 560px) { .rank-body { padding: 16px; } .rank-thumb { width: 56px; } }
+
+/* owner only: picking the next Album of the Day */
+.pick-dialog .seg { overflow: visible; align-self: flex-start; }
+.sc-pick svg { width: 1.1em; height: 1.1em; }
+.pick-day { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; font-weight: 600; font-size: 0.9375rem; }
+.pick-day input[type="date"] { width: auto; min-width: 0; }
+.pick-day .as-dim, .pick-day .error { font-weight: 400; margin: 0; }
+.pick-title { font: 600 1.6rem/1.15 var(--display); letter-spacing: 0.01em; margin: 0; }
+.pick-grid { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); max-height: 46vh; overflow-x: hidden; overflow-y: auto; align-self: stretch; padding: 4px; }
+.pick-by { display: block; margin-top: 2px; font-size: 0.8125rem; }
+.pick-artists { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; max-height: 44vh; overflow-x: hidden; overflow-y: auto; align-self: stretch; }
+.pick-search { display: flex; align-items: end; gap: 10px; align-self: stretch; }
+.pick-search .field { flex: 1; }
+.pick-results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 44vh; overflow-x: hidden; overflow-y: auto; align-self: stretch; }
+button.pick-result {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 10px; text-align: left; font-weight: 400;
+  background: transparent; color: var(--fg); border: 1px solid var(--line);
+}
+button.pick-result:hover:not(:disabled) { background: var(--recess); border-color: var(--fame); }
+button.pick-result:disabled { opacity: 0.55; }
+.pick-thumb { flex: none; width: 52px; border-radius: 2px; }
+.pick-result-text { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.3; }
+.pick-result-text strong { overflow-wrap: anywhere; }
+.pick-badge { flex: none; padding: 2px 8px; border-radius: 999px; background: var(--fame-wash); border: 1px solid var(--fame); font-size: 0.75rem; font-weight: 600; }
+.pick-badge.done { background: var(--recess); border-color: var(--line); color: var(--muted); }
+.pick-choice { display: flex; gap: 18px; align-items: flex-start; }
+.pick-choice-cover { flex: none; width: 150px; }
+.pick-choice-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pick-choice-text strong { font: 600 1.5rem/1.15 var(--display); overflow-wrap: anywhere; }
+@media (max-width: 560px) { .pick-choice { flex-direction: column; } .pick-choice-cover { width: 120px; } .pick-search { flex-direction: column; align-items: stretch; } }
+
+/* the battle: challenger (Album of the Day) against a defender (one of my ranked albums) */
+.arena { align-items: stretch; gap: 14px; }
+.arena-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.arena-round { font: 700 1.125rem/1.2 var(--display); letter-spacing: 0.04em; margin: 0; }
+.arena-round .as-dim { font: 400 0.875rem/1.2 var(--text); letter-spacing: 0; }
+.arena-songs-toggle { margin-left: auto; }
+.arena-songs-toggle svg { width: 1.1em; height: 1.1em; }
+button.arena-songs-toggle[aria-pressed="true"] { border-color: var(--fame); background: var(--fame-wash); }
+
+.arena-rounds { display: inline-flex; align-items: center; gap: 7px; }
+.arena-rounds span { width: 10px; height: 10px; rotate: 45deg; border: 1.5px solid var(--line); background: transparent; transition: background 0.3s, border-color 0.3s; }
+.arena-rounds .done { background: var(--fame-ink); border-color: var(--fame-ink); }
+.arena-rounds .now { border-color: var(--fame); background: var(--fame-wash); box-shadow: 0 0 0 3px var(--fame-wash); }
+
+.arena-zone { display: flex; flex-direction: column; gap: 6px; }
+.arena-strip { position: relative; height: 10px; margin-top: 14px; border-radius: 5px; background: var(--recess); }
+.arena-lit { position: absolute; top: 0; bottom: 0; min-width: 6px; border-radius: 5px; background: var(--fame); transition: left 0.45s cubic-bezier(0.16, 1, 0.3, 1), width 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
+.arena-flag { position: absolute; top: -17px; translate: -50% 0; color: var(--hell); line-height: 0; }
+.arena-flag svg { width: 20px; height: 20px; }
+.arena-zone-text { margin: 0; font-size: 0.875rem; }
+.arena-ask { font: 600 1.1rem/1.2 var(--display); letter-spacing: 0.03em; margin: 4px 0 0; text-align: center; }
+
+.arena-pair { align-items: start; grid-template-columns: minmax(0, 210px) auto minmax(0, 210px); }
+.arena-side { position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.arena-role { font: 700 0.75rem/1.2 var(--display); letter-spacing: 0.12em; text-transform: uppercase; color: var(--fame-ink); text-align: center; }
+.arena-side .as-contender { transition: opacity 0.3s, filter 0.3s, border-color 0.15s, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s; }
+.arena-side.won .as-contender { border-color: var(--fame); transform: translateY(-6px) scale(1.03); box-shadow: 0 18px 30px -14px var(--fame), 0 0 0 2px var(--fame); }
+.arena-side.won .as-contender:disabled { opacity: 1; }
+.arena-side.lost .as-contender { opacity: 0.4; filter: grayscale(1); transform: scale(0.96); }
+.arena-victor {
+  position: absolute; top: 22px; left: 50%; translate: -50% 0; display: inline-flex; align-items: center; gap: 6px; padding: 3px 12px;
+  border-radius: 999px; background: var(--fame-ink); color: var(--on-fame); font: 700 0.8125rem/1.4 var(--display); letter-spacing: 0.1em; text-transform: uppercase;
+  box-shadow: 0 6px 14px -6px var(--fame-ink);
+}
+.arena-victor svg { width: 16px; height: 16px; }
+
+.arena-vs { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; align-self: center; padding-top: 28px; font-size: 1rem; }
+.arena-vs > span:last-child { font: 700 1rem/1 var(--display); letter-spacing: 0.2em; text-transform: uppercase; }
+.arena-swords { position: relative; display: block; width: 52px; height: 52px; color: var(--hell); }
+.arena-swords svg { position: absolute; inset: 0; width: 100%; height: 100%; transition: transform 0.25s; }
+.arena-swords .flip { transform: scaleX(-1); }
+.arena-pair.decided .arena-swords svg { animation: arena-clash 0.45s ease-out; }
+@keyframes arena-clash { 0% { translate: -6px 0; } 40% { translate: 5px 0; scale: 1.25; } 100% { translate: 0 0; scale: 1; } }
+@media (max-width: 560px) {
+  .arena-swords { width: 34px; height: 34px; }
+  .arena-vs { padding-top: 22px; }
+  .arena-role { min-height: 2.4em; display: flex; align-items: flex-end; justify-content: center; } /* one or two lines: keep the cards level */
+}
+
+.arena-songs { max-height: 190px; overflow-y: auto; padding-top: 8px; border-top: 1px solid var(--line); font-size: 0.78rem; line-height: 1.3; margin: 0; }
+.arena-songs ol { margin: 0; padding-left: 1.5em; }
+.arena-songs li { margin: 0 0 3px; padding-left: 2px; }
+.arena-songs li::marker { color: var(--muted); font-variant-numeric: tabular-nums; }
+.arena-songs .cr-dur { float: right; margin-left: 8px; }
+.arena-songs p { margin: 6px 0 0; }
+
+.arena-verdict { display: flex; align-items: center; gap: 8px; font: 700 1.2rem/1.2 var(--display); letter-spacing: 0.03em; }
+.arena-verdict svg { flex: none; width: 26px; height: 26px; color: var(--fame-ink); }
+@media (prefers-reduced-motion: reduce) {
+  .arena-side .as-contender, .arena-lit, .arena-rounds span { transition: none; }
+  .arena-side.won .as-contender, .arena-side.lost .as-contender { transform: none; }
+  .arena-pair.decided .arena-swords svg { animation: none; }
+}
+
 .sc-stats { color: var(--muted); margin: 20px 0 16px; font-variant-numeric: tabular-nums; }
 
 .sc-controls { display: grid; grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; }
@@ -359,7 +478,10 @@ button.tile:hover .sc-cover { transform: translateY(-3px); box-shadow: 0 0 0 1px
 .as > .note { margin-bottom: 16px; }
 .as-steps { display: flex; width: fit-content; margin-bottom: 20px; }
 .as-groups { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 24px; }
-.as-warn { color: var(--hell); margin: 0 0 12px; max-width: 70ch; }
+.as-more { margin-top: 4px; color: var(--muted); font-size: 0.9375rem; max-width: 62ch; }
+.as-more summary { cursor: pointer; width: fit-content; }
+.as-more[open] summary { margin-bottom: 8px; }
+.as-warn { margin: 0 0 12px; max-width: 70ch; padding: 8px 12px; border-left: 3px solid var(--fame); background: var(--fame-wash); }
 
 .as-arena { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 24px; align-items: start; }
 @media (max-width: 860px) { .as-arena { grid-template-columns: 1fr; } }
@@ -404,7 +526,6 @@ button.as-contender:active:not(:disabled) { transform: scale(0.98); }
 .as-decided h2 { font: 600 1.25rem/1.2 var(--display); letter-spacing: 0.02em; }
 .as-final { gap: 4px; }
 
-.as-compact { margin-bottom: 12px; }
 .as-moves { display: flex; flex-direction: column; gap: 16px; }
 .as-summary { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 28px; align-items: baseline; }
 .as-summary li { color: var(--muted); }

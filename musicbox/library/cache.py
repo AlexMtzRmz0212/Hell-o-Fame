@@ -27,6 +27,13 @@ class TTLCache(Generic[T]):
                     raise
             return self._value
 
+    def refresh(self, load: Callable[[], T]) -> T:
+        """Load a new value now. If that fails the error is raised and the old value stays in place."""
+        with self._lock:
+            self._value = load()
+            self._loaded_at = time.monotonic()
+            return self._value
+
     def clear(self) -> None:
         with self._lock:
             self._value = None

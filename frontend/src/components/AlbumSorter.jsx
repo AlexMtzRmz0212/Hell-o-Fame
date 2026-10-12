@@ -50,7 +50,7 @@ export default function AlbumSorter({ api, live, hidden, refresh, onStatus }) {
   const [step, setStep] = useState("playoffs"); // playoffs | movements
   const [picked, setPicked] = useState(null); // a group chosen by hand (or the one just finished)
   const [settled, setSettled] = useState(null); // the album that just found its place, for the slide-in
-  const [compact, setCompact] = useState(false);
+  const [compact, setCompact] = useState(true); // renumber 1..N without gaps; the option lives under "More options"
   const [writing, setWriting] = useState(false);
   const [result, setResult] = useState(null);
 
@@ -303,17 +303,14 @@ export default function AlbumSorter({ api, live, hidden, refresh, onStatus }) {
         <>
           {open.length > 0 && (
             <p className="as-warn">
-              {plural(open.length, "tie")} not decided yet ({open.map((g) => pad(g.rank)).join(", ")}): those albums
-              keep Notion’s order for now.{" "}
+              {plural(open.length, "rank")} still {open.length === 1 ? "is" : "are"} shared by several albums and not
+              played off yet (ranks {open.map((g) => pad(g.rank)).join(", ")}). Until you do, Notion’s own order decides
+              which album of each tie goes first.{" "}
               <button className="link" onClick={() => setStep("playoffs")}>
-                Go to the playoffs
+                Play them off
               </button>
             </p>
           )}
-          <label className="check as-compact">
-            <input type="checkbox" checked={compact} onChange={(e) => setCompact(e.target.checked)} />
-            Close gaps (renumber 1..{rows.length})
-          </label>
           <Movements rows={rows} />
 
           <div className="as-write">
@@ -338,6 +335,18 @@ export default function AlbumSorter({ api, live, hidden, refresh, onStatus }) {
               </p>
             )}
             {result?.failed > 0 && <pre className="log">{result.log.join("\n")}</pre>}
+            <details className="as-more">
+              <summary>More options</summary>
+              <label className="check">
+                <input type="checkbox" checked={compact} onChange={(e) => setCompact(e.target.checked)} />
+                Close gaps: renumber every album 1 to {rows.length}, skipping no number
+              </label>
+              <p className="as-dim">
+                On (the default): ranks run 1, 2, 3… with no holes, so every album below the first gap gets a new
+                number. Off: albums keep their ranks and only tied albums move down to make room, so a gap (4, then 6)
+                stays.
+              </p>
+            </details>
           </div>
         </>
       )}

@@ -3,6 +3,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 LISTENED = "Listened"
+IN_PROGRESS = "In progress"
 # Notion gives new pages a random photo from its built-in gallery. That is not album art.
 STOCK_COVER_HOSTS = {"images.unsplash.com"}
 
@@ -20,13 +21,27 @@ class Album:
     rank: Optional[int] = None  # "Alex Top", numeric part
     rank_text: Optional[str] = None  # "Alex Top" exactly as stored, e.g. "07"
     status: str = "Unknown"
+    picked_by: Optional[str] = None  # "Picked by": who recommended it. Private: never in to_public()
     album_of_day: Optional[str] = None  # "Album of the Day": the date I listened to it
     cover: Optional[str] = None
     has_icon: bool = False  # any icon, emoji included, so we never overwrite one by hand
+    # what the page's icon is: None (no icon), "placeholder" (Notion's built-in "music-album", which new pages get
+    # and nobody chose), "emoji", "upload" (an image uploaded to Notion), "external" (an image link) or "native"
+    # (any other built-in Notion icon)
+    icon_kind: Optional[str] = None
 
     @property
     def is_listened(self) -> bool:
         return self.status == LISTENED
+
+    @property
+    def placeholder_icon(self) -> bool:
+        return self.icon_kind == "placeholder"
+
+    @property
+    def is_rankable(self) -> bool:
+        """Albums that take part in the ranking: listened to, or being listened to right now."""
+        return self.status in (LISTENED, IN_PROGRESS)
 
     @property
     def is_untitled(self) -> bool:
